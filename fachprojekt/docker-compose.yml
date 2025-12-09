@@ -1,0 +1,372 @@
+---
+#------------------------------------------------------------------------------
+# UNIFIED DOCKER COMPOSE
+#------------------------------------------------------------------------------
+
+x-common-base: &common-base
+  privileged: true
+  network_mode: host
+  env_file:
+    - .env
+  stdin_open: true
+  tty: true
+  pull_policy: build
+  ipc: host
+  pid: "host"
+
+x-build-auna: &build-auna
+  context: .
+  dockerfile: dockerfiles/auna.dockerfile
+  args:
+    - ROS_DISTRO=${ROS_DISTRO}
+    - PIP_BREAK_SYSTEM_PACKAGES=${PIP_BREAK_SYSTEM_PACKAGES}
+    - HOST_UID=${HOST_UID}
+    - HOST_GID=${HOST_GID}
+    - ROS_DOMAIN_ID=${ROS_DOMAIN_ID}
+    - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION}
+  target: runtime
+
+x-package-base: &package-base
+  <<: *common-base
+  build:
+    <<: *build-auna
+  volumes:
+    - ./packages/src:/home/ubuntu/workspace/packages/src:cached
+    - ./auna_common:/home/ubuntu/workspace/auna_common:rw
+    - /var/run/lttng:/var/run/lttng:rw
+
+x-physical-base: &physical-base
+  <<: *common-base
+  build:
+    <<: *build-auna
+  volumes:
+    # Packages
+    - ./packages/src:/home/ubuntu/workspace/packages/src:cached
+    # Common data
+    - ./auna_common:/home/ubuntu/workspace/auna_common:rw
+    # IO
+    - /dev:/dev
+    # Tracing
+    - /var/run/lttng:/var/run/lttng:rw
+
+x-gui-base: &gui-base
+  <<: *common-base
+  build:
+    <<: *build-auna
+  volumes:
+    # Packages
+    - ./packages/src:/home/ubuntu/workspace/packages/src:cached
+    # Common data
+    - ./auna_common:/home/ubuntu/workspace/auna_common:rw
+    # GUI
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - ${XDG_RUNTIME_DIR}:/tmp/runtime-ubuntu:rw
+    # Tracing
+    - /var/run/lttng:/var/run/lttng:rw
+  environment:
+    - DISPLAY=${DISPLAY}
+    - XDG_RUNTIME_DIR=/tmp/runtime-ubuntu
+    - QT_X11_NO_MITSHM=1
+
+x-dev-base: &dev-base
+  <<: *common-base
+  build:
+    <<: *build-auna
+    target: development
+  user: "ubuntu"
+  volumes:
+    # Workspace
+    - .:/home/ubuntu/workspace:cached
+    # IO
+    - /dev:/dev
+    # GUI
+    - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    - ${XDG_RUNTIME_DIR}:/tmp/runtime-ubuntu:rw
+    # Tracing
+    - /var/run/lttng:/var/run/lttng:rw
+  environment:
+    - DISPLAY=${DISPLAY}
+    - XDG_RUNTIME_DIR=/tmp/runtime-ubuntu
+    - QT_X11_NO_MITSHM=1
+
+services:
+  #==============================================================================
+  # CORE NETWORK SERVICES
+  #==============================================================================
+  zenohd:
+    build:
+      <<: *build-auna
+    privileged: true
+    network_mode: host
+    env_file:
+      - .env
+    stdin_open: true
+    tty: true
+    pull_policy: build
+    ipc: host
+    image: zenohd:latest
+    container_name: zenohd
+    command: [ "ros2", "run", "rmw_zenoh_cpp", "rmw_zenohd" ]
+    profiles: [ "zenohd", "racing" ]
+
+  #==============================================================================
+  # GAZEBO SERVICES
+  #==============================================================================
+  gazebo:
+    <<: *gui-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${GAZEBO_PACKAGES}
+    image: gazebo:latest
+    container_name: gazebo
+    command: [ "ros2", "launch", "auna_gazebo", "gazebo_world.launch.py", "use_sim_time:=true" ]
+    profiles: [ "sim", "racing" ]
+
+  #=============================================================================
+  # ROBOT SPAWNING SERVICES
+  #=============================================================================
+  spawn_robot:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${GAZEBO_PACKAGES}
+    image: spawn_robot:latest
+    container_name: spawn_robot
+    command: [ "ros2", "launch", "auna_gazebo", "spawn_robot.launch.py" ]
+    profiles: [ "spawn_robot" ]
+
+  spawn_robot_robot1:
+    extends: spawn_robot
+    container_name: spawn_robot_robot1
+    environment:
+      - ROBOT_INDEX=1
+    profiles: [ "sim_robot1", "racing" ]
+
+  #==============================================================================
+  # GROUND TRUTH SERVICES
+  #==============================================================================
+  ground_truth_static_transform:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${GROUND_TRUTH_PACKAGES}
+    image: ground_truth_static_transform:latest
+    container_name: ground_truth_static_transform
+    command: [ "ros2", "launch", "auna_ground_truth", "static_transform.launch.py", "use_sim_time:=true" ]
+    profiles: [ "sim", "racing" ]
+
+  ground_truth:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${GROUND_TRUTH_PACKAGES}
+    image: ground_truth:latest
+    container_name: ground_truth
+    command: [ "ros2", "launch", "auna_ground_truth", "ground_truth.launch.py" ]
+    profiles: [ "ground_truth" ]
+
+  ground_truth_robot1:
+    extends: ground_truth
+    container_name: ground_truth_robot1
+    environment:
+      - ROBOT_INDEX=1
+    profiles: [ "sim_robot1", "racing" ]
+
+  #==============================================================================
+  # TF SERVICES
+  #==============================================================================
+  global_tf:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${TF_PACKAGES}
+    image: global_tf:latest
+    container_name: global_tf
+    command: [ "ros2", "launch", "auna_tf", "global_tf.launch.py", "use_sim_time:=true" ]
+    profiles: [ "sim", "racing" ]
+
+  #==============================================================================
+  # LOCALIZATION SERVICES
+  #==============================================================================
+
+  slam:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=fp_slam
+    image: slam:latest
+    container_name: slam
+    command: [ "/bin/bash", "-c", "source /home/ubuntu/workspace/packages/install/setup.bash && cd packages && source install/setup.bash && exec ros2 launch fp_slam slam_launch.py" ]
+    profiles: [ "slam" ]
+
+  localization_pose:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${TF_PACKAGES}
+    image: localization_pose:latest
+    container_name: localization_pose
+    command: [ "ros2", "launch", "auna_tf", "localization_pose_publisher.launch.py", "use_sim_time:=true" ]
+    profiles: [ "localization_pose" ]
+
+  localization_pose_robot1:
+    extends: localization_pose
+    container_name: localization_pose_robot1
+    environment:
+      - ROBOT_INDEX=1
+    profiles: [ "sim_robot1", "racing" ]
+
+  #==============================================================================
+  # CMD MULTIPLEXER SERVICES
+  #==============================================================================
+  cmd_multiplexer:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${CONTROL_PANEL_PACKAGES}
+    image: cmd_multiplexer:latest
+    container_name: cmd_multiplexer
+    command: [ "ros2", "launch", "auna_control", "cmd_vel_multiplexer.launch.py" ]
+    profiles: [ "cmd_multiplexer" ]
+
+  cmd_multiplexer_robot1:
+    extends: cmd_multiplexer
+    container_name: cmd_multiplexer_robot1
+    environment:
+      - ROBOT_INDEX=1
+      - INITIAL_SOURCE=OFF
+    profiles: [ "sim_robot1", "racing" ]
+
+  #==============================================================================
+  # CONTROL PANEL SERVICES
+  #==============================================================================
+  control_panel:
+    <<: *gui-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${CONTROL_PANEL_PACKAGES}
+    image: control_panel:latest
+    container_name: control_panel
+    command: [ "ros2", "launch", "auna_control", "control_panel.launch.py" ]
+    profiles: [ "control_panel" ]
+
+  control_panel_robot1:
+    extends: control_panel
+    container_name: control_panel_robot1
+    environment:
+      - ROBOT_INDEX=1
+    profiles: [ "sim_robot1", "racing" ]
+
+  #==============================================================================
+  # DEVELOPMENT SERVICES
+  #==============================================================================
+  development:
+    <<: *dev-base
+    image: development:latest
+    container_name: development
+    command: [ "/bin/bash", "-c", "cd packages && colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cd .. && exec /bin/bash" ]
+    profiles: [ "zenohd", "development" ]
+
+  linting:
+    <<: *dev-base
+    image: development:latest
+    container_name: linting
+    command: [ "/bin/bash", "/home/ubuntu/workspace/scripts/fix_all_linting.sh" ]
+    profiles: [ "linting" ]
+
+  test:
+    <<: *dev-base
+    image: development:latest
+    container_name: test
+    command: [ "/bin/bash", "-c", "cd packages && colcon build --symlink-install --cmake-args -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && colcon test && colcon test-result --verbose" ]
+    profiles: [ "test" ]
+
+  #==============================================================================
+  # CONTROL & TELEOPERATION SERVICES
+  #==============================================================================
+  teleop:
+    <<: *gui-base
+    build:
+      <<: *build-auna
+      args:
+        - PACKAGE_NAMES=${TELEOP_PACKAGES}
+    image: teleop:latest
+    container_name: teleop
+    command: [ "/bin/bash", "-c", "source /home/ubuntu/workspace/packages/install/setup.bash && cd packages && source install/setup.bash && exec ros2 run auna_teleoperation keyboard_teleop_hold --ros-args --params-file /home/ubuntu/workspace/auna_common/config/teleoperation/key_teleop.yaml" ]
+    profiles: [ "teleop", "manual_control" ]
+
+  #==============================================================================
+  # DEMO SERVICES
+  #==============================================================================
+  talker:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - INSTALL_PACKAGE_NAMES=${DEMO_PACKAGES}
+    image: talker:latest
+    container_name: talker
+    command: [ "ros2", "run", "demo_nodes_cpp", "talker" ]
+    profiles: [ "talker" ]
+
+  listener:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - INSTALL_PACKAGE_NAMES=${DEMO_PACKAGES}
+    image: listener:latest
+    container_name: listener
+    command: [ "ros2", "run", "demo_nodes_cpp", "listener" ]
+    profiles: [ "listener" ]
+
+  #==============================================================================
+  # TF2 TOOLS
+  #==============================================================================
+  tf2_trees:
+    <<: *package-base
+    build:
+      <<: *build-auna
+      args:
+        - INSTALL_PACKAGE_NAMES=${TF2_TOOLS_PACKAGES}
+    image: tf2_trees:latest
+    container_name: tf2_trees
+    volumes:
+      - .:/home/ubuntu/workspace:cached
+    command: [ "/bin/bash", "-c", "mkdir -p tf2_trees && cd tf2_trees && ros2 run tf2_tools view_frames && ros2 run tf2_tools view_frames --ros-args -r /tf:=/robot1/tf -r /tf_static:=/robot1/tf_static && ros2 run tf2_tools view_frames --ros-args -r /tf:=/robot2/tf -r /tf_static:=/robot2/tf_static && ros2 run tf2_tools view_frames --ros-args -r /tf:=/robot3/tf -r /tf_static:=/robot3/tf_static" ]
+    profiles: [ "tf2_trees" ]
+
+  #==============================================================================
+  # RQT SERVICES
+  #==============================================================================
+  rqt_base:
+    <<: *gui-base
+    build:
+      <<: *build-auna
+      args:
+        - INSTALL_PACKAGE_NAMES=${RQT_PACKAGES}
+    image: rqt:latest
+    container_name: rqt
+    command: [ "rqt" ]
+    profiles: [ "rqt" ]
+
+  rqt_reconfigure:
+    extends: rqt_base
+    container_name: rqt_reconfigure
+    profiles: [ "rqt_reconfigure" ]
+    command: [ "ros2", "run", "rqt_reconfigure", "rqt_reconfigure" ]
+
+  rqt_graph:
+    extends: rqt_base
+    container_name: rqt_graph
+    command: [ "ros2", "run", "rqt_graph", "rqt_graph" ]
+    profiles: [ "rqt_graph" ]

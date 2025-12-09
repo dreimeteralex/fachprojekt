@@ -1,0 +1,21 @@
+cmd_vel_multiplexer_node:
+  inputs:
+      # NEW WALL FOLLOWER INPUT
+    - type: "TwistStamped"
+      name: "wall_follower"
+      topic: "cmd_vel/wall_follower"
+    - type: "TwistStamped"
+      name: "teleop"
+      topic: "cmd_vel/teleop"
+      
+    
+  outputs:
+    - type: "Twist"
+      name: "twist"
+      topic: "cmd_vel_twist"
+    - type: "TwistStamped"
+      name: "twist_stamped"
+      topic: "cmd_vel_twist_stamped"
+    - type: "AckermannDriveStamped"
+      name: "ackermann"
+      topic: "cmd_vel_ackermann"
