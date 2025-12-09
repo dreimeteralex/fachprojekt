@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/License-See%20Packages-blue.svg)](packages/)
 [![ROS2](https://img.shields.io/badge/ROS2-Humble-blue)](https://docs.ros.org/en/humble/)
-[![Docker](https://img.shields.io/badge/docker compose-blue)](https://docs.docker.com/compose/)
+[![Docker](https://img.shields.io/badge/docker-compose-blue)](https://docs.docker.com/compose/)
 
 This repository contains a student project based on the **AuNa – Autonomous Navigation Racing Simulator**.  
 The framework is ROS2-based and provides a hands-on environment for learning autonomous navigation, control algorithms and robot racing using simulated robots. Deployment is handled via Docker Compose, with Gazebo for 3D simulation and RViz for visualization.
