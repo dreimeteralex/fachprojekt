@@ -4,16 +4,62 @@
 [![ROS2](https://img.shields.io/badge/ROS2-Humble-blue)](https://docs.ros.org/en/humble/)
 [![Docker](https://img.shields.io/badge/docker compose-blue)](https://docs.docker.com/compose/)
 
-An educational ROS2-based framework for teaching autonomous navigation and robot racing. This system provides a hands-on learning environment where students can learn ROS2 fundamentals, navigation algorithms, and autonomous racing techniques using simulated robots. The system uses Docker Compose for easy deployment and provides Gazebo simulation with RViz visualization.
+This repository contains a student project based on the **AuNa – Autonomous Navigation Racing Simulator**.  
+The framework is ROS2-based and provides a hands-on environment for learning autonomous navigation, control algorithms and robot racing using simulated robots. Deployment is handled via Docker Compose, with Gazebo for 3D simulation and RViz for visualization.
 
 ![Gazebo Simulation](media/gazeboSimulation.gif)
 
+## 📌 Project status
+
+This fork is used as a teaching and project environment.  
+So far, the following functionalities have been implemented:
+
+- **Automatic Emergency Braking (AEB)**  
+  A safety node that monitors laser scan data and triggers braking when obstacles are detected within a critical distance.
+
+- **Wallfollowing**  
+  A control node that keeps the robot at a desired distance to a wall using laser scan data (e.g. for corridor / racetrack navigation).
+
+**Current work (in progress):**
+
+- Integration of **slam_toolbox** for online mapping  
+- Setup of a **mapping pipeline** (map creation, saving, and usage for navigation)
+
+## 🧩 Implemented components (project-relevant)
+### Automatic Emergency Braking (AEB)
+
+- **Package:** `auna_aeb`  
+- Monitors laser scan data for obstacles in front of the vehicle  
+- Publishes safe velocity commands if an obstacle is detected within a safety margin  
+- Can be combined with other control nodes (e.g. wallfollowing) as an additional safety layer  
+
+### Wallfollowing
+
+- **Package:** `fp_wallfollowing`  
+- Uses laser scan data to follow a wall at a desired distance  
+- Suitable as a base behavior for navigation on tracks or corridors  
+- Implemented as a ROS2 node, subscribes to sensor topics and publishes velocity commands  
+
+### Work in Progress: SLAM & Mapping
+
+- **Package:** `fp_slam` (and related configuration in `auna_common`)  
+- Integration of **slam_toolbox** for:
+  - Online map creation while driving through the environment  
+  - Storing maps for later navigation runs  
+- **Goal:** Combine SLAM-based maps with navigation and control to enable more robust autonomous driving.  
+
 ## 🚀 Key Features
 
-- **Educational Focus**: Designed for teaching ROS2 and autonomous navigation concepts
-- **Single Robot Racing**: Learn autonomous racing and navigation algorithms
-- **Docker-based Deployment**: Simple containerized deployment - no manual installation required
-- **Real-time Visualization**: Gazebo 3D simulation with RViz integration
+- **Educational Focus**  
+  Designed for teaching ROS2, control and navigation in a simulated racing scenario.
+- **Single Robot Racing**  
+  Autonomous and semi-autonomous racing on predefined tracks.
+- **Docker-based Deployment**  
+  Reproducible environment using Docker Compose – no complex local ROS installation required.
+- **Real-time Visualization**  
+  Gazebo for simulation, RViz for visualization and debugging of topics, frames and navigation behavior.
+- **Extendable Architecture**  
+  ROS2 packages for control, simulation, mapping and teleoperation can be extended with own algorithms (e.g. AEB, wallfollowing, SLAM).
 
 ## 🛠️ Installation
 
@@ -21,8 +67,8 @@ An educational ROS2-based framework for teaching autonomous navigation and robot
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/HarunTeper/AuNa.git
-   cd AuNa
+   git clone https://github.com/dreimeteralex/fachprojekt.git
+   cd fachprojekt
    ```
 
 ## 🚀 Usage
@@ -74,39 +120,6 @@ Once the simulation starts, you'll see both **Gazebo** (simulation) and **RViz**
 2. In RViz window:
    - Enter namespace: `robot1`
    - Select input source: `teleop` (for manual racing)
-   
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-1. **Docker containers fail to start**:
-
-   ```bash
-   # Check Docker daemon
-   sudo systemctl status docker
-   
-   # Rebuild containers
-   docker compose build --no-cache
-   ```
-
-2. **Gazebo crashes or has poor performance**:
-
-   ```bash
-   # Check GPU drivers (for NVIDIA GPUs)
-   nvidia-smi
-   
-   # Reduce graphics quality in Gazebo settings
-   # Or disable GPU acceleration: LIBGL_ALWAYS_SOFTWARE=1
-   ```
-
-3. **RViz namespace not working**:
-   - Ensure you enter the exact namespace format: `robot1`
-   - Check that the robot containers are running: `docker compose ps`
-
-4. **Input source changes not taking effect**:
-   - Wait a few seconds after selecting the input source
-   - Check the robot's status in the control panel interface
 
 ## 📁 Package Overview
 
@@ -122,6 +135,11 @@ The framework consists of several ROS2 packages organized by functionality:
 
 - **`auna_ekf`** - Extended Kalman Filter for sensor fusion
 - **`auna_tf`** - Transform frame management and broadcasting
+- **`fp_slam`** - SLAM integration and mapping experiments (in progress)
+
+### Safety and Behaviour
+ - **`fp_wallfollowing`** - Transform frame management and broadcasting
+- **`auna_aeb`** - SLAM integration and mapping experiments (in progress)
 
 ### Messaging
 
@@ -172,7 +190,8 @@ This repository includes comprehensive GitHub Copilot instructions to help you d
 
 ## 📄 License
 
-This project's licensing is under development. Please refer to individual package licenses for specific components and check with the maintainers for usage permissions.
+Licensing is package-specific.
+Please refer to the license files inside each package and, if in doubt, clarify usage with the original project maintainers and your supervisor.
 
 ## 🙏 Acknowledgments
 
@@ -180,13 +199,5 @@ This project's licensing is under development. Please refer to individual packag
 - **Navigation2 Team**: For the navigation stack
 - **Gazebo Team**: For the simulation environment
 - **Contributors**: All researchers and developers who contributed to this project
-
-## 📞 Support
-
-- **Issues**: [GitHub Issues](https://github.com/HarunTeper/AuNa/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/HarunTeper/AuNa/discussions)
-- **Email**: <harun.teper@tu-dortmund.de>
-
----
 
 **Happy Autonomous Navigation!** 🚗🤖
